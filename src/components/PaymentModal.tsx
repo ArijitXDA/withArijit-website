@@ -303,8 +303,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, defaultCou
 
   const initiateRazorpayPayment = async () => {
     try {
-      console.log('=== INITIATING RAZORPAY PAYMENT ===')
-      
       // Check if we're in a secure context
       if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
         throw new Error('Razorpay requires HTTPS or localhost for security')
