@@ -1,25 +1,25 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import PaymentModal from '../components/PaymentModal'
 import PaymentHistory from '../components/PaymentHistory'
 import { supabase } from '../lib/supabase'
-import { 
-  User, 
-  BookOpen, 
-  Calendar, 
-  Clock, 
-  Video, 
-  FileText, 
-  CreditCard, 
-  Award, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Edit, 
-  Save, 
-  X, 
-  Download, 
+import {
+  User,
+  BookOpen,
+  Calendar,
+  Clock,
+  Video,
+  FileText,
+  CreditCard,
+  Award,
+  Phone,
+  Mail,
+  MapPin,
+  Edit,
+  Save,
+  X,
+  Download,
   ExternalLink,
   Users,
   CheckCircle,
@@ -35,7 +35,8 @@ import {
   Sparkles,
   ArrowRight,
   Share,
-  Rocket
+  Rocket,
+  GraduationCap
 } from 'lucide-react'
 
 interface SessionRecord {
@@ -110,14 +111,73 @@ interface Certificate {
   updated_at?: string
 }
 
+// =====================================================
+// V2 Enrollment Info Component
+// =====================================================
+interface V2CourseInfo {
+  course_name: string
+  course_code: string
+  batch_code: string | null
+  enrollment_type: string
+  enrollment_status: string
+}
+
+function V2EnrollmentBanner({ courseInfo, user }: { courseInfo: V2CourseInfo; user: any }) {
+  return (
+    <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-3xl shadow-2xl p-6 md:p-8 mb-6 md:mb-8 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
+      <div className="relative z-10">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
+          <div className="flex items-center space-x-4">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+              <GraduationCap className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-white/80 uppercase tracking-wider">
+                {courseInfo.enrollment_type === 'free' ? 'Free Access' : 'Enrolled Course'}
+              </div>
+              <h3 className="text-xl md:text-2xl font-bold text-white">{courseInfo.course_name}</h3>
+              {courseInfo.batch_code && (
+                <p className="text-white/80 text-sm mt-1">Batch: {courseInfo.batch_code}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              to={`/courses/${courseInfo.course_code}`}
+              className="bg-white/20 backdrop-blur-sm text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-white/30 transition-all duration-200 text-sm text-center border border-white/30"
+            >
+              View Course
+            </Link>
+            {courseInfo.enrollment_type === 'free' && (
+              <Link
+                to="/courses"
+                className="bg-white text-teal-700 px-5 py-2.5 rounded-xl font-bold hover:bg-gray-100 transition-all duration-200 text-sm text-center shadow-lg"
+              >
+                Upgrade to Premium
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// =====================================================
+// Main Dashboard
+// =====================================================
 const Dashboard: React.FC = () => {
-  const { user, signOut } = useAuth()
+  const { user, signOut, v2Enrollment, hasV2Enrollment, isLegacyStudent } = useAuth()
+  const navigate = useNavigate()
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [renewalPaymentModalOpen, setRenewalPaymentModalOpen] = useState(false)
   const [certificates, setCertificates] = useState<Certificate[]>([])
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   const [studentRecord, setStudentRecord] = useState<StudentRecord | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [v2CourseInfo, setV2CourseInfo] = useState<V2CourseInfo | null>(null)
   const [batchSessionLink, setBatchSessionLink] = useState<BatchSessionLink | null>(null)
   const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([])
   const [referralData, setReferralData] = useState<ReferralData>({ referredStudents: [], totalReferralIncome: 0 })
@@ -126,6 +186,56 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState('')
   const [certificateViewerOpen, setCertificateViewerOpen] = useState(false)
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null)
+
+  // Redirect paid V2 enrollment with no batch to batch selection
+  useEffect(() => {
+    if (
+      hasV2Enrollment &&
+      v2Enrollment &&
+      v2Enrollment.enrollment_type === 'paid' &&
+      v2Enrollment.payment_status === 'completed' &&
+      !v2Enrollment.batch_id
+    ) {
+      navigate('/choose-batch', { replace: true })
+    }
+  }, [hasV2Enrollment, v2Enrollment, navigate])
+
+  // Fetch V2 course info if V2 enrollment exists
+  useEffect(() => {
+    const fetchV2CourseInfo = async () => {
+      if (!v2Enrollment?.course_id) return
+      try {
+        const { data: course } = await supabase
+          .from('courses_v2')
+          .select('course_name, course_code')
+          .eq('id', v2Enrollment.course_id)
+          .single()
+
+        let batchCode: string | null = null
+        if (v2Enrollment.batch_id) {
+          const { data: batch } = await supabase
+            .from('batches_v2')
+            .select('batch_code')
+            .eq('id', v2Enrollment.batch_id)
+            .single()
+          batchCode = batch?.batch_code || null
+        }
+
+        if (course) {
+          setV2CourseInfo({
+            course_name: course.course_name,
+            course_code: course.course_code,
+            batch_code: batchCode,
+            enrollment_type: v2Enrollment.enrollment_type,
+            enrollment_status: v2Enrollment.enrollment_status,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching V2 course info:', err)
+      }
+    }
+    fetchV2CourseInfo()
+  }, [v2Enrollment])
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -472,6 +582,11 @@ Enroll now: https://AIwithArijit.com
                 <p className="text-red-700 font-medium">{error}</p>
               </div>
             </div>
+          )}
+
+          {/* V2 Enrollment Banner */}
+          {hasV2Enrollment && v2CourseInfo && (
+            <V2EnrollmentBanner courseInfo={v2CourseInfo} user={user} />
           )}
 
           {/* (A) Top Section - Welcome & Profile */}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import OAuthButtons from '../components/auth/OAuthButtons'
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react'
 
 const SignIn: React.FC = () => {
@@ -71,6 +72,9 @@ const SignIn: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-lg p-8">
+          {/* OAuth Sign In Options */}
+          <OAuthButtons mode="signin" redirectTo="/dashboard" />
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {emailFromUrl && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

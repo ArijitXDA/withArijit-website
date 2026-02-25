@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import OAuthButtons from '../components/auth/OAuthButtons'
 import { User, Mail, Phone, Briefcase, Calendar, Lock, Eye, EyeOff, UserPlus } from 'lucide-react'
 
 const SignUp: React.FC = () => {
@@ -165,6 +166,9 @@ const SignUp: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-lg p-8">
+          {/* OAuth Sign Up Options */}
+          <OAuthButtons mode="signup" redirectTo="/dashboard" />
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
