@@ -254,6 +254,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
               <ul className="space-y-2">
                 <li>
+                  <Link to="/group-booking" className="text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+                    🏢 Group / Team Enrollment
+                  </Link>
+                </li>
+                <li>
                   <Link to="/ai-readiness-quiz" className="text-gray-400 hover:text-white transition-colors">
                     Check your AI-Readiness
                   </Link>

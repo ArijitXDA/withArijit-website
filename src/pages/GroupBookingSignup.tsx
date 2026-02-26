@@ -122,7 +122,7 @@ export default function GroupBookingSignup() {
       // Create enrollment
       await supabase.from('student_enrollments_v2').insert({
         student_email: user.email?.toLowerCase(),
-        student_name: user.name || user.user_metadata?.full_name || null,
+        student_name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
         auth_user_id: user.id,
         course_id: booking.course_id,
         enrollment_type: 'group',

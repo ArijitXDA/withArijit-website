@@ -2,7 +2,8 @@
 // Group Invite Edge Function
 // =====================================================
 // Sends signup invite emails to group booking members.
-// Triggered after entity completes group booking payment.
+// Triggered after entity completes group booking payment
+// and submits the member email list.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -31,10 +32,13 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Fetch group booking
+    // Fetch group booking with course name via join
     const { data: booking, error: bookingError } = await supabase
       .from('group_bookings')
-      .select('*')
+      .select(`
+        *,
+        course:courses_v2(course_name, course_code)
+      `)
       .eq('id', group_booking_id)
       .single()
 
@@ -45,7 +49,12 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Fetch members who haven't received invites
+    // Resolve course name (from joined course, fallback to graceful default)
+    const courseName =
+      (booking.course as { course_name?: string } | null)?.course_name ||
+      'AI Course with Arijit'
+
+    // Fetch members who haven't received invites yet
     const { data: members, error: membersError } = await supabase
       .from('group_booking_members')
       .select('*')
@@ -75,16 +84,17 @@ Deno.serve(async (req: Request) => {
         const signupUrl = `${siteUrl}/group-booking/signup/${booking.invite_token}`
 
         // Send invite email via send-email function
-        await supabase.functions.invoke('send-email', {
+        const { error: emailError } = await supabase.functions.invoke('send-email', {
           body: {
             template_code: 'GROUP_INVITE',
             recipient_email: member.member_email,
-            recipient_name: member.member_name,
+            recipient_name: member.member_name || member.member_email.split('@')[0],
             variables: {
               entity_name: booking.entity_name,
-              organization: booking.entity_organization || 'your team',
+              organization: booking.entity_organization || booking.entity_name,
               signup_url: signupUrl,
-              course_name: 'AI Course', // Would fetch course name in production
+              course_name: courseName,
+              seat_count: booking.total_seats,
             },
             triggered_by: 'group-invite',
             related_entity_type: 'group_booking',
@@ -92,7 +102,13 @@ Deno.serve(async (req: Request) => {
           },
         })
 
-        // Update member as invite sent
+        if (emailError) {
+          console.error(`Email error for ${member.member_email}:`, emailError)
+          invitesFailed.push(member.member_email)
+          continue
+        }
+
+        // Mark member as invite sent
         await supabase
           .from('group_booking_members')
           .update({
@@ -108,6 +124,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Update booking status to 'invites_sent' if all invites were dispatched
+    if (invitesFailed.length === 0) {
+      await supabase
+        .from('group_bookings')
+        .update({ booking_status: 'invites_sent' })
+        .eq('id', group_booking_id)
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -116,6 +140,7 @@ Deno.serve(async (req: Request) => {
         invites_failed: invitesFailed.length,
         sent_to: invitesSent,
         failed_for: invitesFailed,
+        course_name: courseName,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
